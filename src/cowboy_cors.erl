@@ -25,16 +25,16 @@
 %% @private
 execute(Req, Env) ->
     {_, Policy} = lists:keyfind(cors_policy, 1, Env),
-    {Method, Req1} = cowboy_req:method(Req),
-    origin_present(Req1, #state{env = Env, policy = Policy, method = Method}).
+    Method = cowboy_req:method(Req),
+    origin_present(Req, #state{env = Env, policy = Policy, method = Method}).
 
 %% CORS specification only applies to requests with an `Origin' header.
 origin_present(Req, State) ->
     case cowboy_req:header(<<"origin">>, Req) of
-        {undefined, Req1} ->
-            terminate(Req1, State);
-        {Origin, Req1} ->
-            policy_init(Req1, State#state{origin = Origin})
+        undefined ->
+            terminate(Req, State);
+        Origin ->
+            policy_init(Req, State#state{origin = Origin})
     end.
 
 policy_init(Req, State = #state{policy = Policy}) ->
@@ -67,28 +67,28 @@ allowed_origins(Req, State = #state{origin = Origin}) ->
 
 request_method(Req, State = #state{method = <<"OPTIONS">>}) ->
     case cowboy_req:header(<<"access-control-request-method">>, Req) of
-        {undefined, Req1} ->
+        undefined ->
             %% This is not a pre-flight request, but an actual request.
-            exposed_headers(Req1, State);
-        {Data, Req1} ->
+            exposed_headers(Req, State);
+        Data ->
             cowboy_http:token(Data,
                               fun(<<>>, Method) ->
-                                      request_headers(Req1, State#state{preflight = true,
+                                      request_headers(Req, State#state{preflight = true,
                                                                         request_method = Method});
                                  (_, _) ->
-                                      terminate(Req1, State)
+                                      terminate(Req, State)
                               end)
     end;
 request_method(Req, State) ->
     exposed_headers(Req, State).
 
 request_headers(Req, State) ->
-    {Headers, Req1} = cowboy_req:header(<<"access-control-request-headers">>, Req, <<>>),
+    Headers = cowboy_req:header(<<"access-control-request-headers">>, Req, <<>>),
     case cowboy_http:list(Headers, fun cowboy_http:token_ci/2) of
         {error, badarg} ->
-            terminate(Req1, State);
+            terminate(Req, State);
         List ->
-            max_age(Req1, State#state{request_headers = List})
+            max_age(Req, State#state{request_headers = List})
     end.
 
 %% max_age/2 should return a non-negative integer or the atom undefined
